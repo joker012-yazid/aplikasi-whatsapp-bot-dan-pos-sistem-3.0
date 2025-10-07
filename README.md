@@ -92,13 +92,52 @@ Voltura Service Hub transforms the CodeGuide Starter Kit into a full blueprint f
 
 ## Project Structure
 ```
-src/
-  app/          # Next.js App Router pages, layout, API
-  components/   # shadcn/ui components + Voltura concierge chat
-  lib/          # Supabase client, utilities
-  middleware.ts # Clerk protection
-supabase/       # SQL migrations & policies
+apps/
+  api/          # Fastify + Prisma REST API with Socket.IO
+  web/          # Next.js 15 application
+  worker/       # BullMQ background processor
+packages/
+  messaging/    # Shared Baileys session manager
 ```
+
+## Local Development
+
+Install dependencies once from the repo root:
+
+```bash
+npm install
+```
+
+Then start the desired workspace:
+
+```bash
+# Next.js frontend
+npm run dev:web
+
+# Fastify API (http://localhost:4000)
+npm run dev:api
+
+# BullMQ worker
+npm run dev:worker
+```
+
+The API relies on PostgreSQL and Redis. For local prototyping use Docker Compose (below) or supply compatible `DATABASE_URL` and `REDIS_URL` values.
+
+## Docker Compose
+
+The repository ships with a production-style stack including PostgreSQL, Redis, API, worker, web, and Nginx. Launch everything with:
+
+```bash
+docker compose up --build
+```
+
+Services expose:
+
+- Nginx gateway: http://localhost:8080
+- API: http://localhost:4000
+- Web (internal): http://web:3000
+
+Persistent WhatsApp session data is shared between the API and worker through the `whatsapp_sessions` volume.
 
 ## Next Steps
 - Configure Clerk & Supabase keys, then replace the Supabase schema with the tables outlined above
