@@ -51,14 +51,16 @@ import { createSupabaseServerClient } from '@/lib/supabase'
 
 export async function getData() {
   const supabase = await createSupabaseServerClient()
-  
+
   const { data, error } = await supabase
     .from('your_table')
     .select('*')
-  
+
   return data
 }
 ```
+
+> **Note:** `createSupabaseServerClient()` also requests the Clerk token with the `supabase` template so that Supabase receives a JWT containing the correct claims.
 
 ### Client-side usage:
 
@@ -70,15 +72,16 @@ function MyComponent() {
   const { getToken } = useAuth()
 
   const fetchData = async () => {
-    const token = await getToken()
-    
-    const { data, error } = await supabase
-      .from('your_table')
-      .select('*')
-      .auth(token)
+    const token = await getToken({ template: 'supabase' })
+
+    await supabase.auth.setSession({ access_token: token ?? '', refresh_token: '' })
+
+    const { data, error } = await supabase.from('your_table').select('*')
   }
 }
 ```
+
+> **Note:** Instead of mutating the singleton client, you can create a new Supabase client instance per request and pass the Clerk token in the `Authorization` header: `createClient(url, key, { global: { headers: { Authorization: `Bearer ${token}` } } })`.
 
 ### Get current user (from Clerk):
 
@@ -122,4 +125,5 @@ CREATE POLICY "Users can insert own data" ON your_table
 
 ### Token issues
 - Make sure you're using `createSupabaseServerClient()` for server-side operations
-- For client-side, ensure you're passing the Clerk token to Supabase
+- For client-side, ensure you're either calling `supabase.auth.setSession({ access_token, refresh_token: '' })` or creating a request-scoped client with the `Authorization: Bearer <token>` header after retrieving the Clerk token via `getToken({ template: 'supabase' })`
+

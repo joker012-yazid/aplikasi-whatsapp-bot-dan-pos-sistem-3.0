@@ -17,7 +17,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 export async function createSupabaseServerClient() {
   const { getToken } = await auth();
-  const token = await getToken();
+  const token = await getToken({ template: "supabase" });
 
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
