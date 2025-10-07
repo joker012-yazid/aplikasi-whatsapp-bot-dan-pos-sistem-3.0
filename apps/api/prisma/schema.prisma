@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DELIVERED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+model Customer {
+  id          String        @id @default(uuid())
+  name        String
+  phone       String        @unique
+  email       String?
+  address     String?
+  notes       String?
+  devices     Device[]
+  jobs        Job[]
+  quotations  Quotation[]
+  invoices    Invoice[]
+  messages    MessageLog[]
+  campaigns   Campaign[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Device {
+  id          String    @id @default(uuid())
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  customerId  String?
+  type        String
+  model       String
+  serial      String?
+  notes       String?
+  jobs        Job[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Job {
+  id              String      @id @default(uuid())
+  ticketNumber    String      @unique
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  customerId      String
+  device          Device?     @relation(fields: [deviceId], references: [id])
+  deviceId        String?
+  status          JobStatus   @default(PENDING)
+  priority        String?
+  issueSummary    String?
+  technicianNotes String?
+  estimatedCost   Decimal?    @db.Decimal(10, 2)
+  quotation       Quotation?
+  invoice         Invoice?
+  reminders       Reminder[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Quotation {
+  id            String           @id @default(uuid())
+  number        String           @unique
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  customerId    String
+  job           Job?             @relation(fields: [jobId], references: [id])
+  jobId         String?
+  status        QuotationStatus  @default(DRAFT)
+  total         Decimal          @db.Decimal(10, 2)
+  lineItems     Json
+  validUntil    DateTime?
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  number      String   @unique
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String
+  job         Job?     @relation(fields: [jobId], references: [id])
+  jobId       String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id])
+  quotationId String?
+  total       Decimal  @db.Decimal(10, 2)
+  balance     Decimal  @db.Decimal(10, 2)
+  metadata    Json?
+  payments    Payment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId   String
+  amount      Decimal  @db.Decimal(10, 2)
+  method      String
+  reference   String?
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model InventoryItem {
+  id           String   @id @default(uuid())
+  sku          String   @unique
+  name         String
+  description  String?
+  quantity     Int      @default(0)
+  reorderLevel Int      @default(0)
+  costPrice    Decimal? @db.Decimal(10, 2)
+  sellPrice    Decimal? @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MessageLog {
+  id            String           @id @default(uuid())
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  customerId    String
+  job           Job?             @relation(fields: [jobId], references: [id])
+  jobId         String?
+  campaign      Campaign?        @relation(fields: [campaignId], references: [id])
+  campaignId    String?
+  session       WhatsAppSession? @relation(fields: [sessionId], references: [id])
+  sessionId     String?
+  direction     MessageDirection
+  content       String
+  mediaUrl      String?
+  processed     Boolean          @default(false)
+  queuedAt      DateTime         @default(now())
+  processedAt   DateTime?
+  createdAt     DateTime         @default(now())
+}
+
+model Campaign {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  status      String        @default("draft")
+  scheduledAt DateTime?
+  completedAt DateTime?
+  customer    Customer?     @relation(fields: [customerId], references: [id])
+  customerId  String?
+  messages    MessageLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Reminder {
+  id        String   @id @default(uuid())
+  job       Job      @relation(fields: [jobId], references: [id])
+  jobId     String
+  type      String
+  sendAt    DateTime
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model WhatsAppSession {
+  id           String   @id @default(uuid())
+  name         String
+  status       String   @default("disconnected")
+  qrCode       String?
+  lastSyncedAt DateTime?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  messages     MessageLog[]
+}
