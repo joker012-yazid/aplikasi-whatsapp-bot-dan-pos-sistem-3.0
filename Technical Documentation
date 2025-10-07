@@ -1,0 +1,1295 @@
+# Technical Documentation
+## WhatsApp Bot CRM System
+
+**Version**: 1.0  
+**Last Updated**: October 2025  
+**Tech Stack**: Next.js, Node.js, PostgreSQL, Docker, Baileys, OpenAI API
+
+---
+
+## 1. System Overview
+
+### 1.1 Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Web UI (Next.js)                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │Dashboard │  │   POS    │  │ WhatsApp │  │   CRM    │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+└────────────────────────┬────────────────────────────────────┘
+                         │ API Layer
+┌────────────────────────┴────────────────────────────────────┐
+│                    Backend Services (Node.js)                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  WhatsApp    │  │   OpenAI     │  │     POS      │     │
+│  │   Service    │  │   Service    │  │   Service    │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│              PostgreSQL Database + Redis Cache               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 1.2 Technology Stack
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Frontend | Next.js | 14.x |
+| UI Framework | Shadcn/ui + Tailwind | Latest |
+| Backend | Node.js | 20.x LTS |
+| Database | PostgreSQL | 15.x |
+| Cache | Redis | 7.x |
+| WhatsApp API | Baileys | Latest |
+| AI Service | OpenAI GPT-4 | API v1 |
+| Container | Docker Compose | 2.x |
+| ORM | Prisma / TypeORM | Latest |
+
+---
+
+## 2. Core Features
+
+### 2.1 WhatsApp Bot System
+**Purpose**: Automated customer interaction and job tracking
+
+#### Key Features:
+- **QR Code Customer Registration**
+  - Generate unique QR per transaction
+  - Capture customer data on scan
+  - Automatic CRM profile creation
+  
+- **AI-Powered Chat**
+  - Context-aware responses using OpenAI
+  - Knowledge base integration
+  - Fallback to human technician
+  - Multi-language support (Malay/English)
+  
+- **Automated Workflow**
+  - Job status notifications
+  - Quotation delivery
+  - Payment reminders
+  - Completion alerts
+  
+- **Smart Reminder System**
+  - Configurable reminder intervals (1, 20, 30 days)
+  - Conditional triggering
+  - Customer response tracking
+
+### 2.2 WhatsApp Blaster
+**Purpose**: Marketing campaign management with anti-ban protection
+
+#### Key Features:
+- **Campaign Management**
+  - Create/schedule campaigns
+  - Target audience segmentation
+  - Message personalization with variables
+  - Media attachment support
+  
+- **Anti-Ban Mechanisms**
+  - Random delay (30-60s between messages)
+  - Daily limit enforcement (100-150 messages)
+  - Business hours restriction
+  - Human-like typing simulation
+  - Session rotation
+  
+- **Analytics**
+  - Delivery rate tracking
+  - Read receipt monitoring
+  - Response rate calculation
+  - Campaign performance metrics
+
+### 2.3 POS System
+**Purpose**: Sales and repair job management
+
+#### Key Features:
+- **Transaction Processing**
+  - Multi-item sales
+  - Multiple payment methods
+  - Discount application
+  - Tax calculation
+  
+- **Repair Job Management**
+  - Job creation and tracking
+  - Status workflow management
+  - Technician assignment
+  - Parts and labor tracking
+  - Photo documentation
+  
+- **Document Generation**
+  - Invoice auto-generation
+  - Quotation creation
+  - PDF export
+  - WhatsApp/Email delivery
+  
+- **Inventory Management**
+  - Real-time stock tracking
+  - Low stock alerts
+  - Purchase order management
+  - Stock adjustment with audit trail
+
+### 2.4 CRM System
+**Purpose**: Customer relationship and data management
+
+#### Key Features:
+- **Customer Management**
+  - Profile creation and maintenance
+  - Transaction history
+  - Device registration
+  - Communication log
+  
+- **Data Analytics**
+  - Customer segmentation
+  - Purchase behavior analysis
+  - Lifetime value calculation
+  - Churn prediction
+  
+- **Marketing Tools**
+  - Customer tagging
+  - Segment-based campaigns
+  - Opt-in/opt-out management
+  - Review collection
+
+### 2.5 Admin Dashboard
+**Purpose**: System configuration and monitoring
+
+#### Key Features:
+- **Real-time Monitoring**
+  - Live WhatsApp messages
+  - Active jobs dashboard
+  - Sales metrics
+  - System health
+  
+- **Configuration**
+  - WhatsApp connection management
+  - OpenAI API configuration
+  - Business settings
+  - User role management
+  
+- **Reporting**
+  - Sales reports
+  - Inventory reports
+  - Customer analytics
+  - WhatsApp performance
+  
+- **System Maintenance**
+  - Database backup/restore
+  - System updates
+  - Log viewer
+  - Cache management
+
+---
+
+## 3. User Flows
+
+### 3.1 Customer Drop-off Flow
+```
+1. Customer arrives at shop
+2. Discussion about device problem
+3. Customer agrees to leave device
+   ├─→ Technician generates QR code
+   └─→ Display QR on screen/print
+4. Customer scans QR code
+   ├─→ Redirect to web form
+   └─→ Fill details:
+       - Name
+       - Phone number
+       - Device type
+       - Model
+       - Accept T&C
+5. Submit form
+   ├─→ Create customer record (if new)
+   ├─→ Create job record
+   └─→ Send WhatsApp confirmation
+6. Bot sends: "Terima kasih [Name], barang anda akan dicek sebentar lagi"
+```
+
+### 3.2 Repair Quotation Flow
+```
+1. Technician examines device
+2. Technician opens job in system
+3. Enter diagnosis:
+   ├─→ Problem description
+   ├─→ Required parts
+   ├─→ Labor cost
+   └─→ Total repair cost
+4. Submit quotation
+   └─→ Bot sends WhatsApp to customer:
+       "Masalah: [diagnosis]
+        Kos repair: RM [amount]
+        Sila confirm untuk proceed"
+5. Wait for customer response
+   ├─→ No response (Day 1) → Send reminder 1
+   ├─→ No response (Day 20) → Send reminder 2
+   ├─→ No response (Day 30) → Send reminder 3
+   └─→ Customer responds:
+       ├─→ "Setuju" → Proceed to repair
+       └─→ "Tak setuju" → Schedule pickup
+```
+
+### 3.3 Repair Process Flow
+```
+1. Customer approves quotation
+2. Bot sends: "Laptop anda akan dibaiki. Tunggu update dari kami"
+3. Job status → "In Progress"
+4. Technician performs repair
+5. Technician uploads progress photos
+   └─→ Bot sends progress update with photos
+6. Repair completed
+7. Technician marks job as "Completed"
+   ├─→ Upload completion photos
+   ├─→ Generate invoice
+   └─→ Bot sends:
+       - Completion photos
+       - Invoice (PDF)
+       - "Boleh ambil laptop sekarang"
+8. Customer arrives for pickup
+9. Cashier processes payment
+10. Mark job as "Delivered & Paid"
+11. Bot sends: "Terima kasih! Sila berikan review: [link]"
+```
+
+### 3.4 Broadcast Campaign Flow
+```
+1. Admin creates new campaign
+   ├─→ Set campaign name
+   ├─→ Choose target audience
+   │   ├─→ All customers
+   │   ├─→ By customer type
+   │   ├─→ By last visit date
+   │   └─→ Custom filter
+   ├─→ Compose message
+   │   ├─→ Use template
+   │   ├─→ Add personalization {nama}, {model}
+   │   └─→ Attach media (optional)
+   └─→ Schedule or send now
+2. System validates:
+   ├─→ Check daily limit
+   ├─→ Remove blacklisted numbers
+   └─→ Check business hours
+3. Start sending with anti-ban:
+   ├─→ Random delay 30-60s
+   ├─→ Personalize each message
+   └─→ Track delivery status
+4. Monitor campaign:
+   ├─→ Messages sent
+   ├─→ Delivered count
+   ├─→ Read count
+   └─→ Responses
+```
+
+### 3.5 POS Transaction Flow
+```
+1. Customer purchases item/service
+2. Cashier opens POS
+3. Add items:
+   ├─→ Scan barcode / search product
+   ├─→ Select quantity
+   └─→ Repeat for multiple items
+4. Apply discount (if any)
+5. Calculate tax and total
+6. Process payment:
+   ├─→ Select payment method
+   ├─→ Enter amount received
+   └─→ Calculate change
+7. Generate invoice
+8. Deduct from inventory
+9. Print/Send invoice:
+   ├─→ Print receipt
+   └─→ Send via WhatsApp (if phone available)
+10. Complete transaction
+```
+
+### 3.6 Admin Dashboard Flow
+```
+1. Admin logs in
+2. View dashboard:
+   ├─→ Today's stats (sales, jobs, messages)
+   ├─→ Recent activities
+   └─→ Alerts (low stock, pending jobs)
+3. Navigate to module:
+   ├─→ WhatsApp: View/manage conversations
+   ├─→ Jobs: Track repair status
+   ├─→ POS: Process sales
+   ├─→ Customers: Manage profiles
+   ├─→ Inventory: Stock management
+   └─→ Reports: View analytics
+4. Settings access:
+   ├─→ WhatsApp connection
+   ├─→ AI configuration
+   ├─→ Business settings
+   └─→ User management
+```
+
+---
+
+## 4. Database Schema
+
+### 4.1 Complete PostgreSQL Schema
+
+```sql
+-- ============================================================
+-- CUSTOMERS TABLE
+-- ============================================================
+CREATE TABLE customers (
+    customer_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone_number VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    postcode VARCHAR(10),
+    customer_type VARCHAR(20) DEFAULT 'Regular' CHECK (customer_type IN ('New', 'Regular', 'VIP')),
+    total_visits INTEGER DEFAULT 0,
+    total_spending DECIMAL(10,2) DEFAULT 0,
+    lifetime_value DECIMAL(10,2) DEFAULT 0,
+    opt_in_marketing BOOLEAN DEFAULT true,
+    opt_in_whatsapp BOOLEAN DEFAULT true,
+    notes TEXT,
+    tags TEXT[], -- Array for multiple tags
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_visit_date TIMESTAMP
+);
+
+CREATE INDEX idx_customers_phone ON customers(phone_number);
+CREATE INDEX idx_customers_type ON customers(customer_type);
+CREATE INDEX idx_customers_created ON customers(created_at);
+
+-- ============================================================
+-- DEVICES TABLE
+-- ============================================================
+CREATE TABLE devices (
+    device_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    device_type VARCHAR(50) NOT NULL, -- Laptop, PC, Printer, etc
+    brand VARCHAR(100),
+    model VARCHAR(255),
+    serial_number VARCHAR(255),
+    specifications JSONB, -- Store flexible device specs
+    purchase_date DATE,
+    warranty_expiry DATE,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_devices_customer ON devices(customer_id);
+CREATE INDEX idx_devices_type ON devices(device_type);
+
+-- ============================================================
+-- USERS TABLE (Staff/Admin)
+-- ============================================================
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('Admin', 'Technician', 'Cashier', 'Manager')),
+    phone_number VARCHAR(20),
+    is_active BOOLEAN DEFAULT true,
+    last_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_role ON users(role);
+
+-- ============================================================
+-- REPAIR JOBS TABLE
+-- ============================================================
+CREATE TABLE repair_jobs (
+    job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_number VARCHAR(50) UNIQUE NOT NULL, -- e.g., JOB-2025-0001
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    device_id UUID REFERENCES devices(device_id) ON DELETE SET NULL,
+    assigned_technician_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    
+    -- Job Details
+    problem_description TEXT NOT NULL,
+    diagnosis TEXT,
+    solution_applied TEXT,
+    
+    -- Status & Tracking
+    status VARCHAR(30) DEFAULT 'Pending' CHECK (status IN (
+        'Pending', 
+        'Quoted', 
+        'Approved', 
+        'In Progress', 
+        'Completed', 
+        'Ready for Pickup',
+        'Delivered', 
+        'Cancelled',
+        'Rejected'
+    )),
+    priority VARCHAR(20) DEFAULT 'Normal' CHECK (priority IN ('Low', 'Normal', 'High', 'Urgent')),
+    
+    -- Dates
+    date_received TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_quoted TIMESTAMP,
+    date_approved TIMESTAMP,
+    date_started TIMESTAMP,
+    date_completed TIMESTAMP,
+    date_delivered TIMESTAMP,
+    estimated_completion_date DATE,
+    
+    -- Financial
+    parts_cost DECIMAL(10,2) DEFAULT 0,
+    labor_cost DECIMAL(10,2) DEFAULT 0,
+    additional_charges DECIMAL(10,2) DEFAULT 0,
+    discount DECIMAL(10,2) DEFAULT 0,
+    total_cost DECIMAL(10,2) GENERATED ALWAYS AS (
+        parts_cost + labor_cost + additional_charges - discount
+    ) STORED,
+    
+    -- Additional Info
+    customer_approved BOOLEAN DEFAULT false,
+    approval_date TIMESTAMP,
+    internal_notes TEXT,
+    customer_notes TEXT,
+    warranty_void BOOLEAN DEFAULT false,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_jobs_customer ON repair_jobs(customer_id);
+CREATE INDEX idx_jobs_status ON repair_jobs(status);
+CREATE INDEX idx_jobs_technician ON repair_jobs(assigned_technician_id);
+CREATE INDEX idx_jobs_date_received ON repair_jobs(date_received);
+CREATE INDEX idx_jobs_number ON repair_jobs(job_number);
+
+-- ============================================================
+-- JOB PHOTOS TABLE
+-- ============================================================
+CREATE TABLE job_photos (
+    photo_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE CASCADE,
+    photo_type VARCHAR(20) CHECK (photo_type IN ('Before', 'During', 'After')),
+    photo_url TEXT NOT NULL,
+    photo_path TEXT NOT NULL,
+    description TEXT,
+    uploaded_by UUID REFERENCES users(user_id),
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_photos_job ON job_photos(job_id);
+CREATE INDEX idx_photos_type ON job_photos(photo_type);
+
+-- ============================================================
+-- JOB PARTS TABLE (Parts used in repair)
+-- ============================================================
+CREATE TABLE job_parts (
+    job_part_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE SET NULL,
+    part_name VARCHAR(255) NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_cost DECIMAL(10,2) NOT NULL,
+    total_cost DECIMAL(10,2) GENERATED ALWAYS AS (quantity * unit_cost) STORED,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_job_parts_job ON job_parts(job_id);
+CREATE INDEX idx_job_parts_product ON job_parts(product_id);
+
+-- ============================================================
+-- PRODUCTS/INVENTORY TABLE
+-- ============================================================
+CREATE TABLE products (
+    product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    subcategory VARCHAR(100),
+    
+    -- Inventory
+    quantity_on_hand INTEGER DEFAULT 0,
+    reorder_level INTEGER DEFAULT 10,
+    reorder_quantity INTEGER DEFAULT 50,
+    
+    -- Pricing
+    unit_cost DECIMAL(10,2) NOT NULL,
+    selling_price DECIMAL(10,2) NOT NULL,
+    markup_percentage DECIMAL(5,2) GENERATED ALWAYS AS (
+        CASE WHEN unit_cost > 0 
+        THEN ((selling_price - unit_cost) / unit_cost * 100)
+        ELSE 0 END
+    ) STORED,
+    
+    -- Product Info
+    barcode VARCHAR(100),
+    supplier_id UUID REFERENCES suppliers(supplier_id) ON DELETE SET NULL,
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    unit_of_measure VARCHAR(20) DEFAULT 'pcs',
+    
+    -- Status
+    is_active BOOLEAN DEFAULT true,
+    is_taxable BOOLEAN DEFAULT true,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_products_sku ON products(sku);
+CREATE INDEX idx_products_category ON products(category);
+CREATE INDEX idx_products_barcode ON products(barcode);
+CREATE INDEX idx_products_name ON products(product_name);
+
+-- ============================================================
+-- SUPPLIERS TABLE
+-- ============================================================
+CREATE TABLE suppliers (
+    supplier_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    supplier_name VARCHAR(255) NOT NULL,
+    contact_person VARCHAR(255),
+    email VARCHAR(255),
+    phone_number VARCHAR(20),
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    postcode VARCHAR(10),
+    country VARCHAR(100) DEFAULT 'Malaysia',
+    payment_terms VARCHAR(100),
+    notes TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_suppliers_name ON suppliers(supplier_name);
+
+-- ============================================================
+-- STOCK MOVEMENTS TABLE
+-- ============================================================
+CREATE TABLE stock_movements (
+    movement_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    movement_type VARCHAR(20) CHECK (movement_type IN (
+        'Purchase', 
+        'Sale', 
+        'Adjustment', 
+        'Return', 
+        'Transfer',
+        'Damage',
+        'Job Usage'
+    )),
+    quantity INTEGER NOT NULL,
+    reference_type VARCHAR(50), -- 'Invoice', 'PO', 'Job', etc
+    reference_id UUID,
+    notes TEXT,
+    performed_by UUID REFERENCES users(user_id),
+    movement_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_movements_product ON stock_movements(product_id);
+CREATE INDEX idx_movements_type ON stock_movements(movement_type);
+CREATE INDEX idx_movements_date ON stock_movements(movement_date);
+
+-- ============================================================
+-- INVOICES TABLE
+-- ============================================================
+CREATE TABLE invoices (
+    invoice_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_number VARCHAR(50) UNIQUE NOT NULL, -- e.g., INV-2025-0001
+    invoice_type VARCHAR(20) CHECK (invoice_type IN ('Sale', 'Repair', 'Service')),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE SET NULL,
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE SET NULL,
+    
+    -- Dates
+    invoice_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE,
+    
+    -- Amounts
+    subtotal DECIMAL(10,2) NOT NULL,
+    tax_rate DECIMAL(5,2) DEFAULT 0,
+    tax_amount DECIMAL(10,2) DEFAULT 0,
+    discount_amount DECIMAL(10,2) DEFAULT 0,
+    total_amount DECIMAL(10,2) NOT NULL,
+    
+    -- Payment
+    payment_status VARCHAR(20) DEFAULT 'Unpaid' CHECK (payment_status IN (
+        'Unpaid', 
+        'Partial', 
+        'Paid', 
+        'Overdue',
+        'Cancelled'
+    )),
+    amount_paid DECIMAL(10,2) DEFAULT 0,
+    balance_due DECIMAL(10,2) GENERATED ALWAYS AS (total_amount - amount_paid) STORED,
+    
+    -- Additional Info
+    notes TEXT,
+    terms TEXT,
+    created_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_invoices_number ON invoices(invoice_number);
+CREATE INDEX idx_invoices_customer ON invoices(customer_id);
+CREATE INDEX idx_invoices_status ON invoices(payment_status);
+CREATE INDEX idx_invoices_date ON invoices(invoice_date);
+CREATE INDEX idx_invoices_job ON invoices(job_id);
+
+-- ============================================================
+-- INVOICE ITEMS TABLE
+-- ============================================================
+CREATE TABLE invoice_items (
+    item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE SET NULL,
+    item_type VARCHAR(20) CHECK (item_type IN ('Product', 'Service', 'Labor', 'Parts')),
+    description TEXT NOT NULL,
+    quantity DECIMAL(10,2) NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_price DECIMAL(10,2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id);
+CREATE INDEX idx_invoice_items_product ON invoice_items(product_id);
+
+-- ============================================================
+-- PAYMENTS TABLE
+-- ============================================================
+CREATE TABLE payments (
+    payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(30) CHECK (payment_method IN (
+        'Cash', 
+        'Card', 
+        'Online Transfer', 
+        'E-Wallet',
+        'Credit',
+        'Cheque'
+    )),
+    reference_number VARCHAR(100),
+    notes TEXT,
+    processed_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX idx_payments_date ON payments(payment_date);
+CREATE INDEX idx_payments_method ON payments(payment_method);
+
+-- ============================================================
+-- QUOTATIONS TABLE
+-- ============================================================
+CREATE TABLE quotations (
+    quotation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quotation_number VARCHAR(50) UNIQUE NOT NULL,
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE SET NULL,
+    
+    -- Dates
+    quotation_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    valid_until DATE,
+    
+    -- Amounts
+    subtotal DECIMAL(10,2) NOT NULL,
+    tax_amount DECIMAL(10,2) DEFAULT 0,
+    total_amount DECIMAL(10,2) NOT NULL,
+    
+    -- Status
+    status VARCHAR(20) DEFAULT 'Pending' CHECK (status IN (
+        'Pending',
+        'Sent',
+        'Approved',
+        'Rejected',
+        'Expired',
+        'Converted'
+    )),
+    
+    -- Response
+    customer_response TEXT,
+    response_date TIMESTAMP,
+    converted_to_invoice_id UUID REFERENCES invoices(invoice_id),
+    
+    notes TEXT,
+    terms TEXT,
+    created_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_quotations_number ON quotations(quotation_number);
+CREATE INDEX idx_quotations_customer ON quotations(customer_id);
+CREATE INDEX idx_quotations_status ON quotations(status);
+CREATE INDEX idx_quotations_job ON quotations(job_id);
+
+-- ============================================================
+-- QUOTATION ITEMS TABLE
+-- ============================================================
+CREATE TABLE quotation_items (
+    item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quotation_id UUID REFERENCES quotations(quotation_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE SET NULL,
+    description TEXT NOT NULL,
+    quantity DECIMAL(10,2) NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_price DECIMAL(10,2) GENERATED ALWAYS AS (quantity * unit_price) STORED
+);
+
+CREATE INDEX idx_quotation_items_quotation ON quotation_items(quotation_id);
+
+-- ============================================================
+-- WHATSAPP MESSAGES TABLE
+-- ============================================================
+CREATE TABLE whatsapp_messages (
+    message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE SET NULL,
+    campaign_id UUID REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
+    
+    -- Message Details
+    message_type VARCHAR(20) CHECK (message_type IN ('Incoming', 'Outgoing', 'Template', 'Broadcast')),
+    message_content TEXT NOT NULL,
+    media_url TEXT,
+    media_type VARCHAR(20), -- image, video, document, audio
+    
+    -- WhatsApp Metadata
+    whatsapp_message_id VARCHAR(255),
+    from_number VARCHAR(20),
+    to_number VARCHAR(20),
+    
+    -- Status
+    status VARCHAR(30) CHECK (status IN (
+        'Pending',
+        'Sent',
+        'Delivered',
+        'Read',
+        'Failed',
+        'Replied'
+    )),
+    
+    -- Timestamps
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    read_at TIMESTAMP,
+    replied_at TIMESTAMP,
+    
+    -- Context
+    context_type VARCHAR(50), -- 'Job Update', 'Quotation', 'Invoice', 'Reminder', etc
+    is_automated BOOLEAN DEFAULT false,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_messages_customer ON whatsapp_messages(customer_id);
+CREATE INDEX idx_messages_job ON whatsapp_messages(job_id);
+CREATE INDEX idx_messages_campaign ON whatsapp_messages(campaign_id);
+CREATE INDEX idx_messages_type ON whatsapp_messages(message_type);
+CREATE INDEX idx_messages_status ON whatsapp_messages(status);
+CREATE INDEX idx_messages_created ON whatsapp_messages(created_at);
+
+-- ============================================================
+-- CAMPAIGNS TABLE
+-- ============================================================
+CREATE TABLE campaigns (
+    campaign_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_name VARCHAR(255) NOT NULL,
+    campaign_type VARCHAR(30) CHECK (campaign_type IN ('Promotional', 'Announcement', 'Follow-up', 'Reminder')),
+    
+    -- Message
+    message_template TEXT NOT NULL,
+    media_url TEXT,
+    media_type VARCHAR(20),
+    
+    -- Targeting
+    target_audience JSONB, -- Store filter criteria
+    target_count INTEGER DEFAULT 0,
+    
+    -- Scheduling
+    status VARCHAR(20) DEFAULT 'Draft' CHECK (status IN (
+        'Draft',
+        'Scheduled',
+        'Running',
+        'Paused',
+        'Completed',
+        'Cancelled'
+    )),
+    scheduled_date TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    
+    -- Statistics
+    total_sent INTEGER DEFAULT 0,
+    total_delivered INTEGER DEFAULT 0,
+    total_read INTEGER DEFAULT 0,
+    total_failed INTEGER DEFAULT 0,
+    total_replied INTEGER DEFAULT 0,
+    
+    -- Settings
+    send_rate_limit INTEGER DEFAULT 100, -- messages per day
+    delay_between_messages INTEGER DEFAULT 45, -- seconds
+    
+    created_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_campaigns_status ON campaigns(status);
+CREATE INDEX idx_campaigns_scheduled ON campaigns(scheduled_date);
+CREATE INDEX idx_campaigns_created_by ON campaigns(created_by);
+
+-- ============================================================
+-- REMINDERS TABLE
+-- ============================================================
+CREATE TABLE reminders (
+    reminder_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE CASCADE,
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    reminder_type VARCHAR(30) CHECK (reminder_type IN (
+        'Quotation Response',
+        'Payment Due',
+        'Pickup Reminder',
+        'Follow-up',
+        'Custom'
+    )),
+    reminder_number INTEGER, -- 1st, 2nd, 3rd reminder
+    scheduled_date TIMESTAMP NOT NULL,
+    status VARCHAR(20) DEFAULT 'Pending' CHECK (status IN ('Pending', 'Sent', 'Cancelled')),
+    message_id UUID REFERENCES whatsapp_messages(message_id),
+    sent_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_reminders_job ON reminders(job_id);
+CREATE INDEX idx_reminders_customer ON reminders(customer_id);
+CREATE INDEX idx_reminders_status ON reminders(status);
+CREATE INDEX idx_reminders_scheduled ON reminders(scheduled_date);
+
+-- ============================================================
+-- AI CONVERSATIONS TABLE
+-- ============================================================
+CREATE TABLE ai_conversations (
+    conversation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    session_id VARCHAR(255) NOT NULL,
+    
+    -- Message
+    user_message TEXT NOT NULL,
+    ai_response TEXT NOT NULL,
+    
+    -- Context
+    context_data JSONB, -- Store conversation context
+    intent VARCHAR(100), -- Detected intent
+    confidence_score DECIMAL(3,2),
+    
+    -- Metadata
+    was_helpful BOOLEAN,
+    required_human_intervention BOOLEAN DEFAULT false,
+    response_time_ms INTEGER,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ai_conv_customer ON ai_conversations(customer_id);
+CREATE INDEX idx_ai_conv_session ON ai_conversations(session_id);
+CREATE INDEX idx_ai_conv_created ON ai_conversations(created_at);
+
+-- ============================================================
+-- SETTINGS TABLE
+-- ============================================================
+CREATE TABLE settings (
+    setting_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category VARCHAR(50) NOT NULL,
+    setting_key VARCHAR(100) NOT NULL,
+    setting_value TEXT,
+    data_type VARCHAR(20) CHECK (data_type IN ('string', 'number', 'boolean', 'json')),
+    description TEXT,
+    is_encrypted BOOLEAN DEFAULT false,
+    updated_by UUID REFERENCES users(user_id),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(category, setting_key)
+);
+
+CREATE INDEX idx_settings_category ON settings(category);
+
+-- ============================================================
+-- AUDIT LOGS TABLE
+-- ============================================================
+CREATE TABLE audit_logs (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    entity_type VARCHAR(50), -- 'Customer', 'Job', 'Invoice', etc
+    entity_id UUID,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_user ON audit_logs(user_id);
+CREATE INDEX idx_audit_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX idx_audit_created ON audit_logs(created_at);
+
+-- ============================================================
+-- NOTIFICATIONS TABLE
+-- ============================================================
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    notification_type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    link TEXT,
+    is_read BOOLEAN DEFAULT false,
+    read_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_read ON notifications(is_read);
+CREATE INDEX idx_notifications_created ON notifications(created_at);
+
+-- ============================================================
+-- TRIGGERS FOR updated_at
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply trigger to all tables with updated_at
+CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_devices_updated_at BEFORE UPDATE ON devices
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_repair_jobs_updated_at BEFORE UPDATE ON repair_jobs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_suppliers_updated_at BEFORE UPDATE ON suppliers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_quotations_updated_at BEFORE UPDATE ON quotations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON campaigns
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+### 4.2 Database Relationships Diagram
+
+```
+customers (1) ──────────── (M) devices
+    │                           │
+    │                           │
+    ├──(M) repair_jobs (M)──────┤
+    │         │
+    │         ├── (M) job_photos
+    │         ├── (M) job_parts ── (1) products
+    │         ├── (1) quotations ── (M) quotation_items
+    │         └── (1) invoices ── (M) invoice_items
+    │                    │
+    │                    └── (M) payments
+    │
+    ├──(M) whatsapp_messages
+    │         │
+    │         └── (1) campaigns
+    │
+    ├──(M) ai_conversations
+    └──(M) reminders
+
+users (staff)
+    ├── assigned to repair_jobs
+    ├── created invoices
+    ├── created quotations
+    ├── processed payments
+    └── audit_logs
+
+products
+    ├── (1) suppliers
+    ├── (M) stock_movements
+    ├── (M) invoice_items
+    └── (M) job_parts
+```
+
+---
+
+## 5. API Endpoints Structure
+
+### 5.1 Authentication
+```
+POST   /api/auth/login
+POST   /api/auth/logout
+POST   /api/auth/refresh
+GET    /api/auth/me
+```
+
+### 5.2 Customers
+```
+GET    /api/customers
+GET    /api/customers/:id
+POST   /api/customers
+PUT    /api/customers/:id
+DELETE /api/customers/:id
+GET    /api/customers/:id/history
+GET    /api/customers/:id/devices
+GET    /api/customers/:id/messages
+```
+
+### 5.3 Repair Jobs
+```
+GET    /api/jobs
+GET    /api/jobs/:id
+POST   /api/jobs
+PUT    /api/jobs/:id
+DELETE /api/jobs/:id
+PATCH  /api/jobs/:id/status
+POST   /api/jobs/:id/photos
+POST   /api/jobs/:id/quotation
+POST   /api/jobs/:id/approve
+GET    /api/jobs/stats
+```
+
+### 5.4 WhatsApp
+```
+GET    /api/whatsapp/status
+POST   /api/whatsapp/connect
+POST   /api/whatsapp/disconnect
+GET    /api/whatsapp/messages
+POST   /api/whatsapp/send
+POST   /api/whatsapp/send-template
+GET    /api/whatsapp/qr
+```
+
+### 5.5 Campaigns
+```
+GET    /api/campaigns
+GET    /api/campaigns/:id
+POST   /api/campaigns
+PUT    /api/campaigns/:id
+DELETE /api/campaigns/:id
+POST   /api/campaigns/:id/start
+POST   /api/campaigns/:id/pause
+GET    /api/campaigns/:id/stats
+```
+
+### 5.6 POS/Invoices
+```
+GET    /api/invoices
+GET    /api/invoices/:id
+POST   /api/invoices
+PUT    /api/invoices/:id
+DELETE /api/invoices/:id
+POST   /api/invoices/:id/payment
+GET    /api/invoices/:id/pdf
+POST   /api/invoices/:id/send
+```
+
+### 5.7 Inventory
+```
+GET    /api/products
+GET    /api/products/:id
+POST   /api/products
+PUT    /api/products/:id
+DELETE /api/products/:id
+POST   /api/products/:id/adjust-stock
+GET    /api/products/low-stock
+GET    /api/stock-movements
+```
+
+### 5.8 Reports
+```
+GET    /api/reports/sales
+GET    /api/reports/inventory
+GET    /api/reports/customers
+GET    /api/reports/whatsapp
+GET    /api/reports/jobs
+```
+
+---
+
+## 6. Environment Variables
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+REDIS_URL=redis://localhost:6379
+
+# WhatsApp
+WHATSAPP_SESSION_PATH=./sessions
+WHATSAPP_MAX_RETRY=3
+
+# OpenAI
+OPENAI_API_KEY=sk-xxx
+OPENAI_MODEL=gpt-4
+OPENAI_MAX_TOKENS=500
+
+# Application
+NODE_ENV=production
+PORT=3000
+JWT_SECRET=your-secret-key
+SESSION_SECRET=your-session-secret
+
+# File Storage
+UPLOAD_PATH=./uploads
+MAX_FILE_SIZE=10485760
+
+# Anti-Ban Settings
+WHATSAPP_DAILY_LIMIT=150
+WHATSAPP_MIN_DELAY=30
+WHATSAPP_MAX_DELAY=60
+BUSINESS_HOURS_START=9
+BUSINESS_HOURS_END=18
+
+# Email (Optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-password
+
+# Backup
+BACKUP_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=30
+```
+
+---
+
+## 7. Security Considerations
+
+### 7.1 Authentication & Authorization
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Session management with Redis
+- Password hashing with bcrypt (min 10 rounds)
+
+### 7.2 Data Protection
+- Encrypted sensitive fields (API keys, passwords)
+- SQL injection prevention (parameterized queries)
+- XSS protection
+- CSRF tokens
+- Rate limiting
+
+### 7.3 WhatsApp Security
+- Session encryption
+- Anti-ban mechanisms
+- Opt-out compliance
+- Message logging for audit
+
+### 7.4 Backup Strategy
+- Daily automated database backup
+- Weekly full system backup
+- 30-day retention policy
+- Offsite backup storage
+- Point-in-time recovery capability
+
+---
+
+## 8. Performance Optimization
+
+### 8.1 Database
+- Proper indexing on frequently queried columns
+- Query optimization
+- Connection pooling
+- Materialized views for reports
+
+### 8.2 Caching
+- Redis for session management
+- Cache frequently accessed data
+- API response caching
+- Static asset caching
+
+### 8.3 Application
+- Code splitting (Next.js)
+- Image optimization
+- Lazy loading
+- CDN for static assets
+
+---
+
+## 9. Development Guidelines
+
+### 9.1 Code Structure
+```
+/project-root
+├── /apps
+│   ├── /web (Next.js frontend)
+│   └── /api (Backend services)
+├── /packages
+│   ├── /database (Prisma/TypeORM)
+│   ├── /whatsapp (Baileys wrapper)
+│   └── /shared (Common utilities)
+├── /docker
+├── /docs
+└── docker-compose.yml
+```
+
+### 9.2 Naming Conventions
+- Database: snake_case
+- TypeScript/JavaScript: camelCase
+- Components: PascalCase
+- Constants: UPPER_SNAKE_CASE
+- Files: kebab-case
+
+### 9.3 Git Workflow
+- Feature branches: `feature/feature-name`
+- Bug fixes: `fix/bug-description`
+- Releases: `release/v1.0.0`
+- Commit format: Conventional Commits
+
+---
+
+## 10. Testing Strategy
+
+### 10.1 Unit Tests
+- Service layer functions
+- Utility functions
+- API endpoints
+
+### 10.2 Integration Tests
+- Database operations
+- WhatsApp service
+- OpenAI integration
+- Payment processing
+
+### 10.3 E2E Tests
+- Complete user flows
+- Critical business processes
+- Multi-step workflows
+
+---
+
+## 11. Deployment Checklist
+
+- [ ] Environment variables configured
+- [ ] Database migrations applied
+- [ ] Redis server running
+- [ ] SSL certificates installed
+- [ ] Backup system configured
+- [ ] Monitoring tools setup
+- [ ] WhatsApp session initialized
+- [ ] OpenAI API tested
+- [ ] User roles created
+- [ ] Initial data seeded
+
+---
+
+**Document Version**: 1.0  
+**Last Updated**: October 2025  
+**Maintained By**: Development Team
