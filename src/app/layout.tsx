@@ -23,9 +23,9 @@ const parkinsans = Parkinsans({
 });
 
 export const metadata: Metadata = {
-  title: "CodeGuide Starter Kit",
+  title: "Voltura Service Hub",
   description:
-    "A modern Next.js starter with TypeScript, TailwindCSS, shadcn/ui, Vercel AI SDK, Clerk, and Supabase",
+    "Unified WhatsApp bot, CRM, and POS platform for device repair businesses with AI automation and Supabase infrastructure",
 };
 
 export default function RootLayout({
