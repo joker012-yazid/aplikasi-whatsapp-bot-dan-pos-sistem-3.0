@@ -1,0 +1,1050 @@
+Hi, I need help building a WhatsApp Bot CRM System. 
+Here's the complete master prompt with all requirements:
+
+# MASTER PROMPT: WhatsApp Bot CRM System Development
+
+## CONTEXT & OBJECTIVE
+You are an expert full-stack developer tasked with building a comprehensive WhatsApp Bot-integrated CRM system for a laptop/PC/printer repair shop. This system automates customer service, repair job tracking, sales transactions, and marketing campaigns through WhatsApp integration with AI capabilities.
+
+## TECH STACK REQUIREMENTS
+- **Frontend**: Next.js 14.x with TypeScript
+- **UI Framework**: Shadcn/ui + Tailwind CSS
+- **Backend**: Node.js 20.x LTS with TypeScript
+- **Database**: PostgreSQL 15.x
+- **Cache**: Redis 7.x
+- **WhatsApp**: Baileys library (latest)
+- **AI**: OpenAI GPT-4 API
+- **Container**: Docker Compose
+- **ORM**: Prisma (preferred) or TypeORM
+
+## PROJECT STRUCTURE
+```
+/project-root
+├── /apps
+│   ├── /web                 # Next.js frontend
+│   │   ├── /app            # App router
+│   │   ├── /components     # React components
+│   │   ├── /lib            # Utilities
+│   │   └── /styles         # Global styles
+│   └── /api                # Backend services
+│       ├── /src
+│       │   ├── /routes     # API routes
+│       │   ├── /services   # Business logic
+│       │   ├── /middleware # Auth, validation
+│       │   └── /utils      # Helpers
+│       └── /prisma         # Database schema
+├── /packages
+│   ├── /database           # Shared DB client
+│   ├── /whatsapp           # WhatsApp service wrapper
+│   └── /shared             # Common utilities
+├── /docker
+│   ├── Dockerfile.web
+│   ├── Dockerfile.api
+│   └── nginx.conf
+├── docker-compose.yml
+└── README.md
+```
+
+## CORE BUSINESS WORKFLOW
+
+### Customer Journey (Based on SOP):
+1. **Customer Drop-off**
+   - Customer brings device to shop
+   - Technician generates QR code
+   - Customer scans QR → fills form (Name, Phone, Device Type, Model, T&C)
+   - Bot sends confirmation WhatsApp
+   
+2. **Diagnosis & Quotation**
+   - Technician examines device
+   - Inputs problem description + repair cost
+   - Bot sends quotation to customer via WhatsApp
+   - System waits for customer approval
+   
+3. **Reminder System (if no response)**
+   - Day 1: Send reminder 1
+   - Day 20: Send reminder 2
+   - Day 30: Send reminder 3
+   
+4. **Customer Decision**
+   - **If Rejected**: Bot notifies customer can pick up device
+   - **If Approved**: Bot confirms repair will proceed
+   
+5. **Repair Process**
+   - Technician performs repair
+   - Uploads progress photos → Bot sends to customer
+   - Upon completion: Uploads final photos → Bot sends invoice + pickup notification
+   
+6. **Payment & Completion**
+   - Customer arrives for pickup and pays
+   - Technician marks as delivered
+   - Bot sends thank you + review request
+
+## DATABASE SCHEMA (POSTGRESQL)
+
+### Critical Tables (Must Implement First):
+
+```sql
+-- CUSTOMERS TABLE
+CREATE TABLE customers (
+    customer_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone_number VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    address TEXT,
+    customer_type VARCHAR(20) DEFAULT 'Regular',
+    total_visits INTEGER DEFAULT 0,
+    total_spending DECIMAL(10,2) DEFAULT 0,
+    opt_in_marketing BOOLEAN DEFAULT true,
+    opt_in_whatsapp BOOLEAN DEFAULT true,
+    tags TEXT[],
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_visit_date TIMESTAMP
+);
+
+-- DEVICES TABLE
+CREATE TABLE devices (
+    device_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    device_type VARCHAR(50) NOT NULL,
+    brand VARCHAR(100),
+    model VARCHAR(255),
+    serial_number VARCHAR(255),
+    specifications JSONB,
+    warranty_expiry DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- USERS TABLE (Staff)
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('Admin', 'Technician', 'Cashier', 'Manager')),
+    is_active BOOLEAN DEFAULT true,
+    last_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- REPAIR JOBS TABLE (CORE)
+CREATE TABLE repair_jobs (
+    job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_number VARCHAR(50) UNIQUE NOT NULL,
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    device_id UUID REFERENCES devices(device_id) ON DELETE SET NULL,
+    assigned_technician_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    
+    problem_description TEXT NOT NULL,
+    diagnosis TEXT,
+    solution_applied TEXT,
+    
+    status VARCHAR(30) DEFAULT 'Pending' CHECK (status IN (
+        'Pending', 'Quoted', 'Approved', 'In Progress', 
+        'Completed', 'Ready for Pickup', 'Delivered', 'Cancelled', 'Rejected'
+    )),
+    priority VARCHAR(20) DEFAULT 'Normal',
+    
+    date_received TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_quoted TIMESTAMP,
+    date_approved TIMESTAMP,
+    date_completed TIMESTAMP,
+    date_delivered TIMESTAMP,
+    estimated_completion_date DATE,
+    
+    parts_cost DECIMAL(10,2) DEFAULT 0,
+    labor_cost DECIMAL(10,2) DEFAULT 0,
+    additional_charges DECIMAL(10,2) DEFAULT 0,
+    discount DECIMAL(10,2) DEFAULT 0,
+    total_cost DECIMAL(10,2) GENERATED ALWAYS AS (
+        parts_cost + labor_cost + additional_charges - discount
+    ) STORED,
+    
+    customer_approved BOOLEAN DEFAULT false,
+    approval_date TIMESTAMP,
+    internal_notes TEXT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- JOB PHOTOS TABLE
+CREATE TABLE job_photos (
+    photo_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE CASCADE,
+    photo_type VARCHAR(20) CHECK (photo_type IN ('Before', 'During', 'After')),
+    photo_url TEXT NOT NULL,
+    photo_path TEXT NOT NULL,
+    description TEXT,
+    uploaded_by UUID REFERENCES users(user_id),
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- WHATSAPP MESSAGES TABLE
+CREATE TABLE whatsapp_messages (
+    message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE SET NULL,
+    campaign_id UUID REFERENCES campaigns(campaign_id) ON DELETE SET NULL,
+    
+    message_type VARCHAR(20) CHECK (message_type IN ('Incoming', 'Outgoing', 'Template', 'Broadcast')),
+    message_content TEXT NOT NULL,
+    media_url TEXT,
+    media_type VARCHAR(20),
+    
+    whatsapp_message_id VARCHAR(255),
+    from_number VARCHAR(20),
+    to_number VARCHAR(20),
+    
+    status VARCHAR(30) CHECK (status IN ('Pending', 'Sent', 'Delivered', 'Read', 'Failed', 'Replied')),
+    
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    read_at TIMESTAMP,
+    
+    context_type VARCHAR(50),
+    is_automated BOOLEAN DEFAULT false,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- REMINDERS TABLE
+CREATE TABLE reminders (
+    reminder_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE CASCADE,
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    reminder_type VARCHAR(30) CHECK (reminder_type IN (
+        'Quotation Response', 'Payment Due', 'Pickup Reminder', 'Follow-up'
+    )),
+    reminder_number INTEGER,
+    scheduled_date TIMESTAMP NOT NULL,
+    status VARCHAR(20) DEFAULT 'Pending' CHECK (status IN ('Pending', 'Sent', 'Cancelled')),
+    message_id UUID REFERENCES whatsapp_messages(message_id),
+    sent_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CAMPAIGNS TABLE
+CREATE TABLE campaigns (
+    campaign_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_name VARCHAR(255) NOT NULL,
+    campaign_type VARCHAR(30),
+    message_template TEXT NOT NULL,
+    media_url TEXT,
+    
+    target_audience JSONB,
+    target_count INTEGER DEFAULT 0,
+    
+    status VARCHAR(20) DEFAULT 'Draft' CHECK (status IN (
+        'Draft', 'Scheduled', 'Running', 'Paused', 'Completed', 'Cancelled'
+    )),
+    scheduled_date TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    
+    total_sent INTEGER DEFAULT 0,
+    total_delivered INTEGER DEFAULT 0,
+    total_read INTEGER DEFAULT 0,
+    
+    send_rate_limit INTEGER DEFAULT 100,
+    delay_between_messages INTEGER DEFAULT 45,
+    
+    created_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- PRODUCTS TABLE
+CREATE TABLE products (
+    product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    
+    quantity_on_hand INTEGER DEFAULT 0,
+    reorder_level INTEGER DEFAULT 10,
+    
+    unit_cost DECIMAL(10,2) NOT NULL,
+    selling_price DECIMAL(10,2) NOT NULL,
+    
+    barcode VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- INVOICES TABLE
+CREATE TABLE invoices (
+    invoice_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    invoice_type VARCHAR(20) CHECK (invoice_type IN ('Sale', 'Repair', 'Service')),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE SET NULL,
+    job_id UUID REFERENCES repair_jobs(job_id) ON DELETE SET NULL,
+    
+    invoice_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE,
+    
+    subtotal DECIMAL(10,2) NOT NULL,
+    tax_rate DECIMAL(5,2) DEFAULT 0,
+    tax_amount DECIMAL(10,2) DEFAULT 0,
+    discount_amount DECIMAL(10,2) DEFAULT 0,
+    total_amount DECIMAL(10,2) NOT NULL,
+    
+    payment_status VARCHAR(20) DEFAULT 'Unpaid' CHECK (payment_status IN (
+        'Unpaid', 'Partial', 'Paid', 'Overdue', 'Cancelled'
+    )),
+    amount_paid DECIMAL(10,2) DEFAULT 0,
+    balance_due DECIMAL(10,2) GENERATED ALWAYS AS (total_amount - amount_paid) STORED,
+    
+    created_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- INVOICE ITEMS TABLE
+CREATE TABLE invoice_items (
+    item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE SET NULL,
+    item_type VARCHAR(20) CHECK (item_type IN ('Product', 'Service', 'Labor', 'Parts')),
+    description TEXT NOT NULL,
+    quantity DECIMAL(10,2) NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_price DECIMAL(10,2) GENERATED ALWAYS AS (quantity * unit_price) STORED
+);
+
+-- PAYMENTS TABLE
+CREATE TABLE payments (
+    payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(30) CHECK (payment_method IN (
+        'Cash', 'Card', 'Online Transfer', 'E-Wallet', 'Credit', 'Cheque'
+    )),
+    reference_number VARCHAR(100),
+    notes TEXT,
+    processed_by UUID REFERENCES users(user_id)
+);
+
+-- AI CONVERSATIONS TABLE
+CREATE TABLE ai_conversations (
+    conversation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(customer_id) ON DELETE CASCADE,
+    session_id VARCHAR(255) NOT NULL,
+    user_message TEXT NOT NULL,
+    ai_response TEXT NOT NULL,
+    context_data JSONB,
+    intent VARCHAR(100),
+    confidence_score DECIMAL(3,2),
+    was_helpful BOOLEAN,
+    required_human_intervention BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- SETTINGS TABLE
+CREATE TABLE settings (
+    setting_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category VARCHAR(50) NOT NULL,
+    setting_key VARCHAR(100) NOT NULL,
+    setting_value TEXT,
+    data_type VARCHAR(20) CHECK (data_type IN ('string', 'number', 'boolean', 'json')),
+    is_encrypted BOOLEAN DEFAULT false,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(category, setting_key)
+);
+
+-- AUDIT LOGS TABLE
+CREATE TABLE audit_logs (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    entity_type VARCHAR(50),
+    entity_id UUID,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AUTO-UPDATE TRIGGER
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply to relevant tables
+CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_repair_jobs_updated_at BEFORE UPDATE ON repair_jobs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON campaigns
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- CREATE INDEXES
+CREATE INDEX idx_customers_phone ON customers(phone_number);
+CREATE INDEX idx_jobs_customer ON repair_jobs(customer_id);
+CREATE INDEX idx_jobs_status ON repair_jobs(status);
+CREATE INDEX idx_jobs_date_received ON repair_jobs(date_received);
+CREATE INDEX idx_messages_customer ON whatsapp_messages(customer_id);
+CREATE INDEX idx_messages_job ON whatsapp_messages(job_id);
+CREATE INDEX idx_reminders_scheduled ON reminders(scheduled_date);
+CREATE INDEX idx_invoices_customer ON invoices(customer_id);
+```
+
+## CORE FEATURES REQUIREMENTS
+
+### 1. WHATSAPP BOT SYSTEM
+
+#### A. QR Code Registration
+```typescript
+// Required functionality:
+- Generate unique QR code per job
+- QR redirects to web form: /register/{unique_token}
+- Form captures: name, phone, device_type, model
+- Auto-create customer if new (based on phone)
+- Create device record
+- Create job record with status 'Pending'
+- Send WhatsApp confirmation message
+```
+
+#### B. AI Chat Integration
+```typescript
+// OpenAI Integration Requirements:
+- Detect customer intent
+- Query database for context (customer history, job status)
+- Provide automated responses for common queries
+- Fallback to technician if:
+  * Confidence score < 0.7
+  * Request outside knowledge base
+  * Customer explicitly requests human
+- Log all conversations
+```
+
+#### C. Automated Messages (Template System)
+```
+Message Types Required:
+1. Confirmation: "Terima kasih {name}, barang anda akan dicek sebentar lagi"
+2. Quotation: "Masalah: {diagnosis}\nKos repair: RM{amount}\nSila reply 'SETUJU' atau 'TAK SETUJU'"
+3. Approved: "Laptop anda akan dibaiki. Tunggu update dari kami"
+4. Rejected: "Boleh ambil semula laptop. Bila nak datang?"
+5. Progress Update: "Update repair: {description}" + photos
+6. Completion: "Laptop siap! Boleh ambil sekarang" + invoice
+7. Thank You: "Terima kasih! Tolong bagi review: {link}"
+8. Reminders: Day 1, 20, 30 messages
+```
+
+#### D. Smart Reminder System
+```typescript
+// Cron job requirements:
+- Check jobs with status='Quoted' and no response
+- If current_date - date_quoted >= 1 day → Send Reminder 1
+- If current_date - date_quoted >= 20 days → Send Reminder 2
+- If current_date - date_quoted >= 30 days → Send Reminder 3
+- Update reminder records
+```
+
+### 2. WHATSAPP BLASTER (ANTI-BAN)
+
+#### Anti-Ban Implementation
+```typescript
+// Critical Requirements:
+const ANTI_BAN_CONFIG = {
+  dailyLimit: 150,                    // Max messages per day
+  minDelay: 30000,                    // 30 seconds
+  maxDelay: 60000,                    // 60 seconds
+  businessHoursStart: 9,              // 9 AM
+  businessHoursEnd: 18,               // 6 PM
+  typingSimulation: true,             // Simulate human typing
+  randomDelayVariance: 0.3,           // 30% variance
+  sessionRotation: true,              // Rotate sessions if multiple
+  respectOptOut: true                 // Skip opted-out customers
+};
+
+// Implementation:
+- Random delay between messages
+- Check daily limit before sending
+- Only send during business hours
+- Personalize each message (no bulk identical messages)
+- Track delivery status
+- Handle failures gracefully
+- Implement exponential backoff on errors
+```
+
+#### Campaign Management
+```typescript
+// Required features:
+- Create campaign with target filters
+- Preview before send
+- Schedule for later
+- Track metrics: sent, delivered, read, replied
+- Pause/resume functionality
+- Blacklist management
+- Variable substitution: {nama}, {model}, etc.
+```
+
+### 3. POS SYSTEM
+
+#### Transaction Processing
+```typescript
+// Required flows:
+1. New Sale Transaction:
+   - Add items (search/scan)
+   - Calculate subtotal, tax, total
+   - Apply discount
+   - Process payment (multiple methods)
+   - Generate invoice
+   - Update inventory
+   - Send invoice via WhatsApp
+
+2. Repair Job Invoice:
+   - Auto-populate from job details
+   - Include parts + labor
+   - Generate invoice
+   - Link to job_id
+   - Send to customer
+```
+
+#### Inventory Management
+```typescript
+// Required features:
+- Real-time stock tracking
+- Low stock alerts (<= reorder_level)
+- Stock movement logging
+- Manual stock adjustment with reason
+- Product search (name, SKU, barcode)
+- Category management
+```
+
+### 4. ADMIN DASHBOARD
+
+#### Dashboard Widgets (Real-time)
+```typescript
+// Metrics to display:
+- Today's Revenue: SUM(invoices WHERE date=today AND status='Paid')
+- Pending Jobs: COUNT(jobs WHERE status IN ('Pending', 'Quoted'))
+- Active Jobs: COUNT(jobs WHERE status='In Progress')
+- New Customers: COUNT(customers WHERE created_at >= today)
+- Pending Reminders: COUNT(reminders WHERE status='Pending')
+- Low Stock Items: COUNT(products WHERE quantity <= reorder_level)
+
+// Recent Activities:
+- Latest WhatsApp messages (5)
+- Recent job updates (5)
+- Recent transactions (5)
+```
+
+#### Settings Page
+```typescript
+// Configuration sections:
+1. WhatsApp Connection:
+   - Display QR code for pairing
+   - Connection status
+   - Reconnect button
+   - Session info
+
+2. OpenAI Settings:
+   - API key input (encrypted)
+   - Model selection
+   - Max tokens
+   - Temperature
+   - Test connection
+
+3. Business Settings:
+   - Company name, address
+   - Tax rate
+   - Currency
+   - Business hours
+   - Terms & conditions
+
+4. User Management:
+   - Add/edit users
+   - Assign roles
+   - Set permissions
+
+5. Backup/Restore:
+   - Manual backup trigger
+   - Restore from file
+   - Scheduled backup settings
+   - View backup history
+```
+
+## DEVELOPMENT PHASES
+
+### PHASE 1: Foundation (Week 1-2)
+**Priority: HIGH**
+
+1. **Setup Project Structure**
+   ```bash
+   # Initialize monorepo
+   - Setup Next.js app
+   - Setup Node.js API
+   - Configure TypeScript
+   - Setup Prisma
+   - Create Docker Compose
+   ```
+
+2. **Database Setup**
+   - Create all tables
+   - Setup migrations
+   - Seed initial data (admin user, settings)
+   - Test connections
+
+3. **Authentication System**
+   - JWT implementation
+   - Login/logout endpoints
+   - Role-based middleware
+   - Session management with Redis
+
+4. **Basic UI Structure**
+   - Layout components
+   - Navigation
+   - Dashboard skeleton
+   - Theme toggle (light/dark)
+
+### PHASE 2: Core Features (Week 3-4)
+**Priority: HIGH**
+
+1. **Customer Management**
+   - CRUD operations
+   - Customer list with search/filter
+   - Customer profile page
+   - Device registration
+
+2. **Repair Job Management**
+   - Create job with QR code
+   - Job listing (all, pending, active, completed)
+   - Job detail view
+   - Status update workflow
+   - Photo upload
+
+3. **WhatsApp Integration (Basic)**
+   - Baileys setup
+   - QR code authentication
+   - Send/receive messages
+   - Message logging
+   - Basic templates
+
+### PHASE 3: Automation (Week 5-6)
+**Priority: HIGH**
+
+1. **AI Integration**
+   - OpenAI service wrapper
+   - Context building from database
+   - Intent detection
+   - Response generation
+   - Fallback logic
+
+2. **Automated Workflows**
+   - Job status triggers
+   - Template message sending
+   - Quotation delivery
+   - Invoice delivery
+   - Completion notification
+
+3. **Reminder System**
+   - Cron job setup
+   - Reminder scheduling
+   - Reminder delivery
+   - Response tracking
+
+### PHASE 4: Sales & Inventory (Week 7-8)
+**Priority: MEDIUM**
+
+1. **POS System**
+   - Transaction UI
+   - Item search/add
+   - Payment processing
+   - Invoice generation (PDF)
+   - Receipt printing
+
+2. **Inventory Management**
+   - Product CRUD
+   - Stock tracking
+   - Low stock alerts
+   - Stock adjustments
+
+3. **Invoice & Payment**
+   - Invoice listing
+   - Payment recording
+   - Payment history
+   - Outstanding balance tracking
+
+### PHASE 5: Marketing (Week 9-10)
+**Priority: MEDIUM**
+
+1. **Campaign Management**
+   - Campaign creation UI
+   - Target audience builder
+   - Message composer with variables
+   - Media upload
+   - Schedule/send functionality
+
+2. **Anti-Ban Implementation**
+   - Rate limiting
+   - Random delays
+   - Business hours check
+   - Session rotation
+   - Delivery tracking
+
+3. **Analytics Dashboard**
+   - Campaign metrics
+   - Delivery rates
+   - Response tracking
+   - Customer engagement
+
+### PHASE 6: Reports & Polish (Week 11-12)
+**Priority: LOW**
+
+1. **Reporting System**
+   - Sales reports
+   - Job completion reports
+   - Customer analytics
+   - Inventory reports
+   - WhatsApp performance
+
+2. **System Settings**
+   - All configuration pages
+   - Backup/restore functionality
+   - System logs viewer
+   - Update mechanism
+
+3. **Testing & Optimization**
+   - Unit tests
+   - Integration tests
+   - Performance optimization
+   - Security audit
+   - Bug fixes
+
+## API ENDPOINTS (Must Implement)
+
+### Authentication
+```
+POST   /api/auth/login
+POST   /api/auth/logout
+POST   /api/auth/refresh
+GET    /api/auth/me
+```
+
+### Customers
+```
+GET    /api/customers              # List with pagination
+GET    /api/customers/:id          # Single customer
+POST   /api/customers              # Create
+PUT    /api/customers/:id          # Update
+DELETE /api/customers/:id          # Delete
+GET    /api/customers/:id/jobs     # Customer job history
+GET    /api/customers/:id/devices  # Customer devices
+```
+
+### Repair Jobs
+```
+GET    /api/jobs                   # List with filters
+GET    /api/jobs/:id               # Single job
+POST   /api/jobs                   # Create (with QR)
+PUT    /api/jobs/:id               # Update
+PATCH  /api/jobs/:id/status        # Update status
+POST   /api/jobs/:id/photos        # Upload photos
+POST   /api/jobs/:id/quotation     # Submit quotation
+POST   /api/jobs/:id/approve       # Customer approve
+POST   /api/jobs/:id/reject        # Customer reject
+GET    /api/jobs/qr/:token         # Get job by QR token
+```
+
+### WhatsApp
+```
+GET    /api/whatsapp/status        # Connection status
+GET    /api/whatsapp/qr            # Get QR for pairing
+POST   /api/whatsapp/send          # Send message
+POST   /api/whatsapp/send-media    # Send with media
+GET    /api/whatsapp/messages      # Message history
+POST   /api/whatsapp/disconnect    # Disconnect
+```
+
+### Campaigns
+```
+GET    /api/campaigns              # List campaigns
+POST   /api/campaigns              # Create
+PUT    /api/campaigns/:id          # Update
+POST   /api/campaigns/:id/start    # Start campaign
+POST   /api/campaigns/:id/pause    # Pause campaign
+GET    /api/campaigns/:id/stats    # Campaign statistics
+```
+
+### Invoices & Payments
+```
+GET    /api/invoices               # List
+POST   /api/invoices               # Create
+GET    /api/invoices/:id           # Single
+GET    /api/invoices/:id/pdf       # Generate PDF
+POST   /api/invoices/:id/send      # Send via WhatsApp
+POST   /api/payments               # Record payment
+```
+
+### Products/Inventory
+```
+GET    /api/products               # List
+POST   /api/products               # Create
+PUT    /api/products/:id           # Update
+GET    /api/products/low-stock     # Low stock items
+POST   /api/products/:id/adjust    # Adjust stock
+```
+
+### Dashboard & Reports
+```
+GET    /api/dashboard/stats        # Dashboard metrics
+GET    /api/reports/sales          # Sales report
+GET    /api/reports/jobs           # Job report
+GET    /api/reports/customers      # Customer analytics
+GET    /api/reports/inventory      # Inventory report
+```
+
+## ENVIRONMENT VARIABLES TEMPLATE
+
+```env
+# Application
+NODE_ENV=production
+PORT=3000
+API_URL=http://localhost:3000/api
+FRONTEND_URL=http://localhost:3000
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/whatsapp_crm
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=your-super-secret-jwt-key-change-this
+JWT_EXPIRES_IN=7d
+REFRESH_TOKEN_SECRET=your-refresh-token-secret
+REFRESH_TOKEN_EXPIRES_IN=30d
+
+# WhatsApp (Baileys)
+WHATSAPP_SESSION_PATH=./sessions/whatsapp
+WHATSAPP_MAX_RETRY=3
+WHATSAPP_BUSINESS_HOURS_START=9
+WHATSAPP_BUSINESS_HOURS_END=18
+
+# Anti-Ban Settings
+WHATSAPP_DAILY_LIMIT=150
+WHATSAPP_MIN_DELAY=30
+WHATSAPP_MAX_DELAY=60
+WHATSAPP_ENABLE_ANTI_BAN=true
+
+# OpenAI
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4
+OPENAI_MAX_TOKENS=500
+OPENAI_TEMPERATURE=0.7
+
+# File Upload
+UPLOAD_DIR=./uploads
+MAX_FILE_SIZE=10485760
+ALLOWED_FILE_TYPES=image/jpeg,image/png,image/jpg,application/pdf
+
+# Email (Optional - for notifications)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+
+# Backup
+BACKUP_DIR=./backups
+BACKUP_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=30
+
+# Security
+BCRYPT_ROUNDS=10
+RATE_LIMIT_WINDOW=15
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Others
+TIMEZONE=Asia/Kuala_Lumpur
+DEFAULT_LANGUAGE=ms
+CURRENCY=MYR
+TAX_RATE=0.00
+```
+
+## CRITICAL IMPLEMENTATION NOTES
+
+### 1. WhatsApp Session Management
+```typescript
+// NEVER use localStorage/sessionStorage in frontend for WhatsApp
+// Store session data in backend filesystem or database
+// Use baileys' multi-device support
+// Implement reconnection logic with exponential backoff
+```
+
+### 2. Message Queue System
+```typescript
+// Use Bull Queue with Redis for:
+- Scheduled messages (reminders)
+- Campaign messages (rate-limited)
+- Retry failed messages
+- Background jobs (PDF generation, etc.)
+```
+
+### 3. Real-time Updates
+```typescript
+// Implement Socket.io for:
+- Live WhatsApp messages in dashboard
+- Job status updates
+- New customer notifications
+- Real-time campaign progress
+```
+
+### 4. Security Best Practices
+```typescript
+// MUST implement:
+- Input validation (Zod/Yup)
+- SQL injection prevention (use ORM)
+- XSS protection
+- CSRF tokens
+- Rate limiting
+- Password hashing (bcrypt, 10+ rounds)
+- Encrypted API keys in database
+```
+
+### 5. Error Handling
+```typescript
+// Implement comprehensive error handling:
+- Try-catch blocks
+- Error logging to file/service
+- User-friendly error messages
+- WhatsApp failure fallbacks
+- Database transaction rollbacks
+```
+
+## TESTING REQUIREMENTS
+
+### Unit Tests (Minimum 60% Coverage)
+```typescript
+// Test all:
+- API endpoints
+- Service functions
+- Utility functions
+- Database queries
+```
+
+### Integration Tests
+```typescript
+// Test:
+- Complete user flows
+- WhatsApp message sending
+- Job creation to completion
+- Payment processing
+- Campaign execution
+```
+
+### E2E Tests (Critical Paths)
+```typescript
+// Test:
+- Customer registration via QR
+- Full repair job workflow
+- Invoice generation and payment
+- Campaign creation and sending
+```
+
+## DEPLOYMENT CHECKLIST
+
+```bash
+# Pre-deployment:
+□ Environment variables configured
+□ Database migrated and seeded
+□ Redis server running and accessible
+□ SSL certificates obtained
+□ Domain configured
+□ Backup strategy tested
+□ WhatsApp session initialized
+□ OpenAI API tested
+□ All tests passing
+□ Security audit completed
+
+# Docker Compose Setup:
+□ PostgreSQL container
+□ Redis container
+□ API container
+□ Web container
+□ Nginx reverse proxy
+□ Volume mounts for uploads/sessions
+□ Network configuration
+
+# Post-deployment:
+□ Health checks passing
+□ Monitoring tools active
+□ Backup cron job running
+□ WhatsApp connected
+□ Admin user created
+□ Test transactions performed
+```
+
+## PERFORMANCE TARGETS
+
+```
+- Page load time: < 2 seconds
+- API response time: < 500ms (95th percentile)
+- Database query time: < 100ms
+- WhatsApp message delivery: < 5 seconds
+- Dashboard real-time updates: < 1 second delay
+- PDF generation: < 3 seconds
+- Image upload: < 2 seconds
+```
+
+## MAINTENANCE & UPDATES
+
+```
+Weekly:
+- Review error logs
+- Check WhatsApp connection
+- Monitor campaign performance
+- Database backup verification
+
+Monthly:
+- Security updates
+- Dependency updates
+- Performance optimization
+- Feature enhancements
+- User feedback review
+```
+
+---
+
+## FINAL NOTES FOR AI AGENT
+
+When implementing this system:
+
+1. **Start with Phase 1** - Don't jump ahead
+2. **Test each feature** before moving to next
+3. **Follow the database schema exactly** - relationships are critical
+4. **Implement anti-ban carefully** - WhatsApp can ban accounts
+5. **Use TypeScript** - type safety is crucial
+6. **Write clean, documented code** - this will be maintained
+7. **Handle errors gracefully** - log everything
+8. **Optimize queries** - use indexes properly
+9. **Secure sensitive data** - encrypt API keys, hash passwords
+10. **Test the complete workflow** - QR → Quotation → Approval → Repair → Invoice
+
+**Remember**: This is a production system handling real business operations. Code quality, reliability, and security are paramount.
+
+---
+
+**Good luck building this comprehensive system! 🚀**
+
+Let's start with Phase 1: Foundation. 
+Please help me:
+1. Setup Next.js project structure
+2. Setup Node.js API with TypeScript
+3. Configure Prisma with PostgreSQL
+4. Create Docker Compose file
+
