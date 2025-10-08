@@ -1,0 +1,117 @@
+🆘 WHEN YOU NEED HELP
+If Something Breaks:
+I'm encountering an issue:
+
+Error: [paste error message]
+
+Context:
+- What I was doing: [describe]
+- What I expected: [describe]
+- What happened: [describe]
+- Environment: Development/Production
+- Phase: [current phase]
+
+Based on the master prompt, how should I fix this?
+If You Want to Modify:
+I want to modify [feature] to add [new functionality].
+
+Current implementation: [describe]
+Desired change: [describe]
+
+How should I implement this without breaking existing features?
+Please provide code changes needed.
+If You're Stuck:
+I'm stuck on [specific part].
+
+What I've tried:
+1. [attempt 1]
+2. [attempt 2]
+
+What's not working: [describe]
+
+Based on the master prompt requirements, what's the correct approach?
+
+✅ COMPLETION CHECKLIST
+Before Considering "Done":
+Phase 1: Foundation
+□ Project structure setup
+□ Database created and migrated
+□ Authentication working
+□ Basic UI with login
+□ Theme toggle working
+
+Phase 2: Core Features
+□ Customer CRUD working
+□ Device management working
+□ Job creation with QR
+□ QR registration flow tested
+□ Photo upload working
+□ WhatsApp connected
+□ Can send/receive messages
+□ Message templates created
+
+Phase 3: Automation
+□ OpenAI responding correctly
+□ Quotation auto-sent
+□ Customer approval detected
+□ Reminder system working
+□ Full workflow tested end-to-end
+□ Messages delivered on status changes
+
+Phase 4: Sales & Inventory
+□ Products created
+□ POS transactions working
+□ Stock deducting correctly
+□ Invoices generating
+□ PDF creation working
+□ Payment recording working
+□ Auto-invoice from jobs working
+
+Phase 5: Marketing
+□ Campaign created
+□ Target filtering working
+□ Anti-ban delays working
+□ Messages sending correctly
+□ Daily limit enforced
+□ Business hours respected
+□ Analytics showing correctly
+
+Phase 6: Reports & Polish
+□ Dashboard showing real data
+□ All reports working
+□ All settings pages complete
+□ Backup/restore tested
+□ Tests written and passing
+□ Documentation complete
+
+Deployment
+□ Production environment ready
+□ Deployed successfully
+□ SSL working
+□ WhatsApp connected in prod
+□ All features tested in prod
+□ Backups automated
+□ Monitoring active
+
+🎓 LEARNING RESOURCES
+If You Want to Understand Deeper:
+I want to learn more about [specific technology/concept].
+
+Can you explain:
+1. How it works in this project
+2. Best practices
+3. Common pitfalls to avoid
+4. Resources to learn more
+
+Related to the master prompt requirements.
+
+🔄 ITERATION & IMPROVEMENT
+After Initial Completion:
+The system is working! Now I want to improve:
+
+Priority improvements:
+1. [feature/optimization]
+2. [feature/optimization]
+3. [feature/optimization]
+
+Based on the master prompt, what's the best approach?
